@@ -56,6 +56,7 @@ python scripts/verify_layout.py --root "$AI_ROOT"
 | S6 五门验收 | master.wav | 1.5 s | **5/5 PASS**（−1.03 dBTP / crest 19.31 / LRA 48.82 / 相关 0.940） |
 | ACE-Step 1.5 生成 | 中文歌词 + 风格提示，30 s | 37.5 s（另有 DiT 加载 14.1 s / LM 加载 22.4 s） | 48 kHz 立体声 30.0 s，BPM 实测 97（请求 96）；人声存在但歌词听清度一般，需人耳评判 |
 | **插件全链路**（`plugin/dsh-song-studio`） | 中文流行 60 s → 生成 → 分离（含和声）→ Pallas 换声 → 母带 | 生成 43.7 s + 分离约 2 min + 换声约 1 min + 混音/验收约 7 s | **5/5 PASS**：−14.07 LUFS / −1.00 dBTP / crest 15.65 / LRA 7.25 / 相关 0.892 |
+| **SVS 唱歌**（`song_sing` / `scripts/svs_sing.py`） | 「深海的鲸鱼 / 把心事说给夜色听」+ 自写旋律 | 7.5 s 干声 ≈ 2 s 采样（100 步） | 24 kHz 干声；ASR 转写对得上歌词；再接 DDSP 换成 Pallas 成功 |
 
 细节与命令见 [`docs/06-verified-pipeline.md`](docs/06-verified-pipeline.md)、[`docs/04-acestep-setup.md`](docs/04-acestep-setup.md)、[`docs/09-plugin-song-studio.md`](docs/09-plugin-song-studio.md)。
 
@@ -76,6 +77,7 @@ dsh plugin --profile desktop add "$(pwd)/plugin/dsh-song-studio"
 | `song_separate` | MSST 分离，`karaoke=true` 出主唱/和声 |
 | `song_convert` | DDSP-SVC 6.2 换声（pilot/full、移调、分块） |
 | `song_mix` | 混音 + 母带（−14 LUFS） |
+| `song_sing` | SVS 唱歌：歌词 + 音符（`C4`/`rest`）→ 24 kHz 干声（DiffSinger master/MIDI-B + PE） |
 | `song_verify` | 五门技术验收 |
 
 ## 仓库结构

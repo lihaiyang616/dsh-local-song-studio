@@ -23,6 +23,7 @@ dsh plugin --profile desktop add /path/to/repo/plugin/dsh-song-studio
 | `song_separate` | MSST kim 分离；`karaoke=true` 再做主唱/和声 |
 | `song_convert` | DDSP-SVC 6.2 换声（pilot/full、移调、自动分块） |
 | `song_mix` | pedalboard 混音母带（−14 LUFS） |
+| `song_sing` | SVS：歌词 + 音符（`C4`/`rest`）→ 24 kHz 干声（DiffSinger master/MIDI-B + PE），可再接 song_convert 换音色 |
 | `song_verify` | 五门技术验收 |
 
 配置全部可留空，自动发现顺序：`AI_ROOT` → `E:/AI-Song` → `D:/AI-Song` → `C:/AudioWork`；
