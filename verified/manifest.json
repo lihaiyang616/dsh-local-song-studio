@@ -124,6 +124,36 @@
         }
       },
       "note": "人声有实质能量（44%），确为带唱输出；歌词清晰度需人耳评判，音频不入库"
+    },
+    "plugin_pipeline_2026-10-27": {
+      "plugin": "plugin/dsh-song-studio (7 tools)",
+      "chain": [
+        "song_plan",
+        "song_generate",
+        "song_separate(karaoke=true)",
+        "song_convert(key=0,pilot)",
+        "song_mix",
+        "song_verify"
+      ],
+      "input": "中文流行 / 96 BPM / 60 s / 中文歌词",
+      "timings": {
+        "generate_seconds": 43.7,
+        "dit_load_seconds": 9.8,
+        "lm_load_seconds": 18,
+        "separate": "约 1-2 min",
+        "convert": "约 1 min",
+        "mix": "约 5 s",
+        "verify": "约 2 s"
+      },
+      "result": {
+        "lufs": -14.07,
+        "true_peak_dbtp": -1.0,
+        "crest_db": 15.65,
+        "lra_db": 7.25,
+        "stereo_correlation": 0.892,
+        "gates_passed": "5/5"
+      },
+      "evidence": "对母带 ASR 试点转写出与歌词对应的词（有字错），分轨显示人声有实质能量"
     }
   }
 }

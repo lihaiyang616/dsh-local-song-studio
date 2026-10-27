@@ -55,16 +55,37 @@ python scripts/verify_layout.py --root "$AI_ROOT"
 | S5 混音+母带 | 三轨 | 4.2 s | −14.03 LUFS |
 | S6 五门验收 | master.wav | 1.5 s | **5/5 PASS**（−1.03 dBTP / crest 19.31 / LRA 48.82 / 相关 0.940） |
 | ACE-Step 1.5 生成 | 中文歌词 + 风格提示，30 s | 37.5 s（另有 DiT 加载 14.1 s / LM 加载 22.4 s） | 48 kHz 立体声 30.0 s，BPM 实测 97（请求 96）；人声存在但歌词听清度一般，需人耳评判 |
+| **插件全链路**（`plugin/dsh-song-studio`） | 中文流行 60 s → 生成 → 分离（含和声）→ Pallas 换声 → 母带 | 生成 43.7 s + 分离约 2 min + 换声约 1 min + 混音/验收约 7 s | **5/5 PASS**：−14.07 LUFS / −1.00 dBTP / crest 15.65 / LRA 7.25 / 相关 0.892 |
 
-细节与命令见 [`docs/06-verified-pipeline.md`](docs/06-verified-pipeline.md) 与 [`docs/04-acestep-setup.md`](docs/04-acestep-setup.md)。
+细节与命令见 [`docs/06-verified-pipeline.md`](docs/06-verified-pipeline.md)、[`docs/04-acestep-setup.md`](docs/04-acestep-setup.md)、[`docs/09-plugin-song-studio.md`](docs/09-plugin-song-studio.md)。
+
+## 插件（`plugin/dsh-song-studio`）
+
+把上面这套串成 7 个 DSH 工具，安装后就能用自然语言驱动：
+
+```bash
+dsh plugin --profile desktop add "$(pwd)/plugin/dsh-song-studio"
+# 重启 DSH → song_status → song_plan → song_generate → song_separate → song_convert → song_mix → song_verify
+```
+
+| 工具 | 作用 |
+|---|---|
+| `song_status` | 体检全部组件与权重 |
+| `song_plan` | 需求 → 结构/caption/歌词草稿/BPM（模板、确定性） |
+| `song_generate` | ACE-Step 整曲生成（一个 seed 一个候选） |
+| `song_separate` | MSST 分离，`karaoke=true` 出主唱/和声 |
+| `song_convert` | DDSP-SVC 6.2 换声（pilot/full、移调、分块） |
+| `song_mix` | 混音 + 母带（−14 LUFS） |
+| `song_verify` | 五门技术验收 |
 
 ## 仓库结构
 
 ```
-docs/       原理、各组件安装、补丁说明、实测、合规边界
+docs/       原理、各组件安装、补丁说明、实测、合规边界、插件说明
 scripts/    安装/校验脚本（PowerShell-free，Git Bash 可跑）
 patches/    ddsp-svc-6.2-contentvec-transformers.patch（唯一代码改动，MIT 上游）
 configs/    cover.local / training.local / 音色 config 的脱敏示例
+plugin/     dsh-song-studio（7 个 DSH 工具，零运行时 npm 依赖）
 verified/   实测产生的报表与哈希清单（不含任何音频）
 ```
 
@@ -72,5 +93,5 @@ verified/   实测产生的报表与哈希清单（不含任何音频）
 
 - **不含权重、不授权音色**：任何模型权重（MSST / DDSP / DiffSinger 声库 / ACE-Step / 目标音色）都不随仓库分发，脚本只负责从公开源下载到本机。音色使用权归你自行确认；用 AI 翻唱公开作品时，词曲著作权仍属权利人。
 - **不承诺商业质量**：技术指标通过（LUFS/真峰值/crest/LRA/相关）不等于听感通过或商业可用。
-- **未验证项**：ACE-Step 1.5 与 DiffSinger 在本仓库为安装脚本 + 待验证状态（各自 docs 顶部标注实测状态）；翻唱链路的 S1–S6 已在上述硬件上实测。
+- **未验证项**：DiffSinger 的公开声库与现行代码版本不兼容（`docs/05` 有完整诊断与三条后续路线）；其余链路（分离/换声/混音/验收/生成/插件）均已在上述硬件实测。
 - **许可证**：本仓库原创部分 MIT（见 LICENSE）；引用的上游项目许可见 NOTICE.md。

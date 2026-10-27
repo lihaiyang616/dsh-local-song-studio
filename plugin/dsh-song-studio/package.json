@@ -1,0 +1,13 @@
+{
+  "name": "dsh-song-studio",
+  "version": "0.1.0",
+  "description": "DSH 本地歌曲工作室：ACE-Step 生成 / MSST 分轨 / DDSP-SVC 换声 / 混音母带 / 五门验收",
+  "type": "module",
+  "main": "index.js",
+  "exports": { ".": "./index.js" },
+  "files": ["index.js", "lib", "cordis.patch.yml", "README.md"],
+  "keywords": ["deepseek-harness", "dsh", "cordis", "plugin", "music", "ace-step", "song"],
+  "license": "MIT",
+  "engines": { "node": ">=18", "dsh": ">=0.2.1-rc.2 <0.3.0" },
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
+}

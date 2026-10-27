@@ -62,20 +62,21 @@ env/Scripts/python.exe scripts/infer.py acoustic "samples/00_我多想说再见�
 
 ## 状态与注意（实测，2026-10-27）
 
-- **引擎装好了，公开检查点对不上**。`PillowTa1k/DiffSinger` 的三个检查点都是**旧版 DiffSinger 格式**（`state_dict` 键为 `pe.mel_prenet.*` 等），而 OpenVPI 现行代码要求 v2 格式（含 `category` 字段、`shallow_diffusion_args`、`K_step_infer` 等）。实测在该仓库里会依次撞上：
+- **引擎装好了，公开检查点对不上**。`PillowTa1k/DiffSinger` 的三个检查点都是**旧版 DiffSinger 格式**（`state_dict` 键为 `pe.mel_prenet.*`，config 里有 `pe_enable: true` / `pe_ckpt` / `use_midi: true`），而 OpenVPI 现行代码（2026 main）要求 v2 格式。实测依次撞上：
   ```
   KeyError: 'K_step_infer' → KeyError: 'dictionary' → KeyError: 'train_aux_decoder'
   → RuntimeError: Category is not specified in this checkpoint.
   ```
   补齐前三个键后仍因旧格式的 `state_dict` 命名无法加载。
-- **可用的三条后续路线**：
-  1. 用旧版引擎 `github.com/MoonInTheRiver/DiffSinger`（master 分支，`inference/svs/ds_cascade.py`）。它的 d 依赖很旧（`numpy==1.19.2`、`librosa==0.8.0`、`pytorch-lightning==0.7.1`），需要独立 env，且旧代码大量使用 `np.float` 等已被 numpy 移除的别名，装起来要打补丁；
+- **进一步定位**：该检查点属于 **2023-03 的 pre-refactor（含 PE / MIDI-B）** 架构。把 OpenVPI 的代码回退到 pre-refactor 提交 `a0cd33d`（"Re-organize model structure and add migrating scripts" 的父提交）后即可对上这套 `model.*` + `pe.*` 键；本机已把这份代码放到 `$AI_ROOT/svs/DiffSinger-legacy-2023/`（未跑通，仅作为下一步的起点）。它需要独立的旧依赖环境（`numpy==1.19`、`librosa==0.8`、`pytorch-lightning==0.7.1`，且代码里有 `np.float` 这类已被 numpy 移除的别名），属于"再投半天到一天"的活。
+- **三条可选后续路线**：
+  1. 用 pre-refactor 代码（`a0cd33d`，已下好）+ 独立旧 env + `numpy<1.24` 补丁，把 0228/0102/0109 三个检查点跑起来（最接近"装完就能用"，但依赖最脏）；
   2. 换 **v2 格式声库**（OpenUtau for DiffSinger 的 `.onnx` 声库 + `dsdict.yaml`），用支持 ONNX 的推理器（官方 dsinfer 是 C++/vcpkg，Windows 需 MSVC；也有第三方 Python ONNX 推理项目）；
   3. 自己训练一个 v2 声库（需要数据与 GPU 时间，不是一次性操作）。
-- 因此本仓库的 SVS 部分当前提供的是**引擎+安装脚本+格式说明**，不提供开箱即用的合成结果；等找到 v2 格式声库或决定走旧版引擎后再补实测。
+- 因此本仓库的 SVS 部分当前提供的是**引擎 + 安装脚本 + 版本兼容诊断 + 旧版代码起点**，不提供开箱即用的合成结果。
 - 声库音色固定：想要目标音色，把 DiffSinger 的输出再送进 DDSP-SVC 换声（两套引擎都是 44.1 kHz，链路顺）。
 - 声库/音色的授权不随模型许可转移，公开发布前自行确认。
 - 和 `docs/04` 的 ACE-Step 相比：DiffSinger 的**旋律完全可控**（你有 MIDI），但没有编曲、没有和声、没有自动混音，那些仍要靠后续处理。
 
-> 工程建议：如果目标是"设计一首歌并唱出来"，先用 **ACE-Step**（docs/04）出成品；等你确实需要"每个音符可控"时再投入 DiffSinger 声库的适配成本。
+> 工程建议：如果目标是"设计一首歌并唱出来"，先用 **ACE-Step**（docs/04）出成品；需要"每个音符可控"时再投入 DiffSinger 声库适配成本。
 

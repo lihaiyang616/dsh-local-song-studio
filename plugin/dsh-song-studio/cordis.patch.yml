@@ -1,0 +1,26 @@
+# dsh-song-studio bundle patch
+#
+# 本文件随插件包分发；`dsh plugin add` 之后，dsh 启动时会自动加载它。
+# 所有路径留空 = 由 index.js 里的默认发现逻辑补齐（$DSH_HOME/plugins/... 或 AI 根目录）。
+- insert:
+    - id: song-studio
+      name: 'dsh-song-studio'
+      config:
+        aiRoot: ''
+        aceDir: ''
+        acePy: ''
+        aceCheckpoints: ''
+        outRoot: ''
+
+        # cover-pipeline 的 runtime 适配器（convert / mix / verify 都是纯 Python 脚本）
+        coverRuntime: ''
+        msstEnv: ''
+        ddspDir: ''
+        ddspEnv: ''
+        voiceModel: ''
+        ffmpeg: ''
+
+        defaultLufs: -14.0
+        generateTimeoutMs: 900000
+        convertTimeoutMs: 900000
+        maxOutputChars: 6000
