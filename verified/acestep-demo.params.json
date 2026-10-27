@@ -1,0 +1,12 @@
+{
+  "caption": "A clean, warm Chinese pop ballad with piano, soft strings and a gentle beat. A clear intimate female vocal sings softly in the verse and opens up in the chorus. Mellow, emotional, hopeful, radio-friendly production.",
+  "lyrics": "[Intro]\n\n[Verse]\n深海里的鲸鱼游过我的窗\n把一天的疲惫轻轻放在一旁\n\n[Chorus]\n如果世界太吵 就听我唱\n把没说完的话 都唱成光\n",
+  "bpm": 96,
+  "language": "zh",
+  "seed": 1234,
+  "steps": 8,
+  "duration": 30,
+  "result": {
+    "audio_0": "out\\15e3ff6d-6cbb-f762-6769-87109926139e.wav"
+  }
+}
