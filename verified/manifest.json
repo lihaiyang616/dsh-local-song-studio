@@ -77,8 +77,14 @@
     "hardware": "RTX 5060 Laptop 8GB / Windows 11 / Python 3.10.11 / torch 2.7.1+cu128",
     "pipeline": "S1 分离 → S2 二次分离 → S4 DDSP 换声（Pallas）→ S5 混音母带 → S6 五门验收",
     "result": {
-      "separation_seconds": [18.6, 69.0],
-      "karaoke_seconds": [20.0, 35.3],
+      "separation_seconds": [
+        18.6,
+        69.0
+      ],
+      "karaoke_seconds": [
+        20.0,
+        35.3
+      ],
       "convert_seconds": 53.9,
       "mix_seconds": 4.2,
       "verify_seconds": 1.5,
@@ -86,9 +92,38 @@
       "true_peak_dbtp": -1.03,
       "crest_db": 19.31,
       "lra_db": 48.82,
-      "stereo_correlation": 0.940,
+      "stereo_correlation": 0.94,
       "gates_passed": "5/5"
     },
-    "excluded": "测试音频、模型权重、用户素材均未入库"
+    "excluded": "测试音频、模型权重、用户素材均未入库",
+    "acestep": {
+      "date": "2026-10-27",
+      "hardware": "RTX 5060 Laptop 7.9GB / Windows 11 / Python 3.12 / torch 2.7.1+cu128",
+      "tier": "tier3 (DiT acestep-v15-turbo + LM acestep-5Hz-lm-0.6B, pt backend, CPU offload)",
+      "checkpoints_size_gb": 11,
+      "load_seconds": {
+        "dit": 14.1,
+        "lm": 22.4
+      },
+      "generate_seconds_30s_song": 37.5,
+      "output": {
+        "format": "wav",
+        "sample_rate": 48000,
+        "channels": 2,
+        "duration": 30.0
+      },
+      "measured": {
+        "bpm": 97,
+        "bpm_requested": 96,
+        "key": "C major (auto)",
+        "stems": {
+          "vocals": 0.44,
+          "drums": 0.41,
+          "bass": 0.07,
+          "other": 0.14
+        }
+      },
+      "note": "人声有实质能量（44%），确为带唱输出；歌词清晰度需人耳评判，音频不入库"
+    }
   }
 }

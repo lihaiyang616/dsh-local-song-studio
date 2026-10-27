@@ -84,10 +84,33 @@ result = generate_music(dit, llm, params=params,
 
 启动时会自动探测显存并打印档位（本机 7.93 GiB → tier3 / LM 0.6B / auto CPU offload）。
 
-## 状态与注意
+## 状态与注意（本机实测 2026-10-27）
 
-- **状态：环境已装好，生成结果实测记录见本节末尾（若为空则仍在跑）。**
+RTX 5060 Laptop **7.9 GB** 实测：
+
+| 项 | 结果 |
+|---|---|
+| 自动档位 | tier3 → DiT `acestep-v15-turbo` + LM `acestep-5Hz-lm-0.6B`，`pt` 后端，CPU offload |
+| 权重体积 | `checkpoints/` 约 11 GB（主仓库 28 文件 + LM 0.6B） |
+| DiT 加载 | 14.1 s |
+| LM 加载 | 22.4 s |
+| 30 s 歌曲生成 | **37.5 s**（LM phase1 18.6 s + phase2 6.8 s + DiT 8 步 + VAE 解码） |
+| 输出 | 44.1→48 kHz 立体声 WAV，30.0 s，峰值归一化到 −1 dB |
+| 客观指标 | BPM 实测 97（请求 96）、C major（未指定自动判定） |
+
+复现命令（本仓库提供的最小无头脚本）：
+
+```bash
+cd "$ACE_DIR"
+HF_ENDPOINT=https://hf-mirror.com .venv/Scripts/python.exe smoke_generate.py --duration 30 --bpm 96 --language zh
+# -> out/<uuid>.wav + out/smoke_params.json
+```
+
+注意：
+
+- 这个 30 s 样例里**人声存在但歌词听不清**（ASR 未转写出词）。这是质量层的事，不是安装问题；改善方向：明确写"lead female vocal, clearly sung, upfront"、把歌词写长到覆盖整段、或换 seed/结构标签重抽。技术可用性已验证（模型加载、推理、VAE、归一化、落盘）。
 - 8 GB 卡不要碰 XL 4B；`vllm` 后端在 Windows 不走，用 `pt`。
 - 中文歌词建议带结构标签（`[Intro]/[Verse]/[Chorus]`），模型对结构的遵循比自然语言描述更稳。
 - 生成质量与提示词遵循度因语言/风格差异大；技术指标（LUFS/峰值）可测，"好不好听"必须人听。
 - 商用：ACE-Step 模型卡声明 MIT 且"商业可用"；若生成内容复刻了受版权保护的旋律/风格，风险仍由使用者承担。
+

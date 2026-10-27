@@ -54,8 +54,9 @@ python scripts/verify_layout.py --root "$AI_ROOT"
 | S4 DDSP 6.2 换声 | 35.3 s（自动 2 块） | 53.9 s | 44.1 kHz 干声 + provenance |
 | S5 混音+母带 | 三轨 | 4.2 s | −14.03 LUFS |
 | S6 五门验收 | master.wav | 1.5 s | **5/5 PASS**（−1.03 dBTP / crest 19.31 / LRA 48.82 / 相关 0.940） |
+| ACE-Step 1.5 生成 | 中文歌词 + 风格提示，30 s | 37.5 s（另有 DiT 加载 14.1 s / LM 加载 22.4 s） | 48 kHz 立体声 30.0 s，BPM 实测 97（请求 96）；人声存在但歌词听清度一般，需人耳评判 |
 
-细节与命令见 [`docs/06-verified-pipeline.md`](docs/06-verified-pipeline.md)。
+细节与命令见 [`docs/06-verified-pipeline.md`](docs/06-verified-pipeline.md) 与 [`docs/04-acestep-setup.md`](docs/04-acestep-setup.md)。
 
 ## 仓库结构
 
