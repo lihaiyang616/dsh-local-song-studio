@@ -1,0 +1,94 @@
+{
+  "schema": 1,
+  "generated": "2026-10-27",
+  "note": "本仓库不分发权重；本文件只记录实测时使用的来源、大小与 sha256 前 16 位，便于复现校验。",
+  "components": {
+    "msst": {
+      "repo": "https://github.com/ZFTurbo/Music-Source-Separation-Training",
+      "commit": "6fdad13",
+      "license": "MIT",
+      "target": "01_人声分离_MSST-GUI"
+    },
+    "ddsp": {
+      "repo": "https://github.com/yxlllc/DDSP-SVC",
+      "branch": "6.2",
+      "license": "MIT",
+      "target": "02_模型推理_DDSP-SVC-6.2/DDSP-barbara-6.2",
+      "note": "默认分支是 6.3，与 6.2 音色模型结构不兼容；必须用 6.2 分支 + 本仓库补丁。"
+    }
+  },
+  "weights": [
+    {
+      "id": "kim",
+      "name": "MelBandRoformer kim（人声/伴奏）",
+      "url": "https://hf-mirror.com/KimberleyJSN/melbandroformer/resolve/main/MelBandRoformer.ckpt",
+      "size": 913106900,
+      "sha256_prefix": "87201f4d31afb5bc",
+      "target": "01_人声分离_MSST-GUI/pretrain/MelBandRoformer_kim.ckpt",
+      "note": "sha256 与 dsh-cover-pipeline 官方材料清单一致"
+    },
+    {
+      "id": "karaoke",
+      "name": "BS-Roformer karaoke（主唱/和声）",
+      "url": "https://hf-mirror.com/becruily/bs-roformer-karaoke/resolve/main/bs_roformer_karaoke_frazer_becruily.ckpt",
+      "size": 204436907,
+      "sha256_prefix": "eb90ee24c1154d83",
+      "target": "01_人声分离_MSST-GUI/pretrain/bs_roformer_karaoke_frazer_becruily.ckpt",
+      "note": "sha256 与官方材料清单一致"
+    },
+    {
+      "id": "contentvec-hf",
+      "name": "ContentVec 转换版（HF state_dict，配合 fairseq-free 补丁）",
+      "url": "https://hf-mirror.com/lengyue233/content-vec-best/resolve/main/pytorch_model.bin",
+      "size": 378342945,
+      "sha256_prefix": "d8dd400e054ddf4e",
+      "target": "02_模型推理_DDSP-SVC-6.2/DDSP-barbara-6.2/pretrain/contentvec/checkpoint_best_legacy_500.pt",
+      "note": "原始 fairseq 版约 1.33 GB，本项目不用它"
+    },
+    {
+      "id": "hifigan",
+      "name": "PC-NSF-HiFiGAN 44.1k hop512 128bin 2025.02",
+      "url": "https://hf-mirror.com/None1145/DDSP-SVC-Base/resolve/main/nsf_hifigan/model/vocoder.ckpt",
+      "config_url": "https://hf-mirror.com/None1145/DDSP-SVC-Base/resolve/main/nsf_hifigan/config.json",
+      "size": 56816642,
+      "sha256_prefix": "6512580252c2675b",
+      "target": "02_模型推理_DDSP-SVC-6.2/DDSP-barbara-6.2/pretrain/pc_nsf_hifigan_44.1k_hop512_128bin_2025.02/model.ckpt"
+    },
+    {
+      "id": "rmvpe",
+      "name": "RMVPE 音高提取",
+      "url": "https://hf-mirror.com/None1145/DDSP-SVC-Base/resolve/main/rmvpe/model.pt",
+      "size": 368492925,
+      "sha256_prefix": "19dc1809cf4cdb0a",
+      "target": "02_模型推理_DDSP-SVC-6.2/DDSP-barbara-6.2/pretrain/rmvpe/model.pt"
+    },
+    {
+      "id": "voice-pallas",
+      "name": "Pallas（DDSP-SVC 6.2 社区音色，仅用于链路验证）",
+      "url": "https://hf-mirror.com/TogetsuDo/pallas-ddsp-svc-6.2/resolve/main/pallas.pt",
+      "config_url": "https://hf-mirror.com/TogetsuDo/pallas-ddsp-svc-6.2/resolve/main/config.yaml",
+      "size": 280285482,
+      "sha256_prefix": "6c8b73dc28b9b1be",
+      "target": "03_音色模型_公开/Pallas_步数20000/exp/reflow-test/model_20000.pt",
+      "note": "社区训练、非官方；不随本仓库分发，授权需自行确认"
+    }
+  ],
+  "verified": {
+    "hardware": "RTX 5060 Laptop 8GB / Windows 11 / Python 3.10.11 / torch 2.7.1+cu128",
+    "pipeline": "S1 分离 → S2 二次分离 → S4 DDSP 换声（Pallas）→ S5 混音母带 → S6 五门验收",
+    "result": {
+      "separation_seconds": [18.6, 69.0],
+      "karaoke_seconds": [20.0, 35.3],
+      "convert_seconds": 53.9,
+      "mix_seconds": 4.2,
+      "verify_seconds": 1.5,
+      "lufs": -14.03,
+      "true_peak_dbtp": -1.03,
+      "crest_db": 19.31,
+      "lra_db": 48.82,
+      "stereo_correlation": 0.940,
+      "gates_passed": "5/5"
+    },
+    "excluded": "测试音频、模型权重、用户素材均未入库"
+  }
+}

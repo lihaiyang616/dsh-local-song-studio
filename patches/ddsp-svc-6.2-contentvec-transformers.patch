@@ -1,0 +1,117 @@
+--- a/ddsp/vocoder.py	2026-10-27 12:12:08.929732200 +0800
++++ b/ddsp/vocoder.py	2026-10-27 12:12:08.986723900 +0800
+@@ -7,8 +7,11 @@
+ import parselmouth
+ import torchcrepe
+ import resampy
+-from transformers import HubertModel, Wav2Vec2FeatureExtractor
+-from fairseq import checkpoint_utils
++from transformers import HubertModel, HubertConfig, Wav2Vec2FeatureExtractor
++try:  # 本机 Windows 无 MSVC、装不了 fairseq：contentvec768l12 路线改走 transformers 加载
++    from fairseq import checkpoint_utils
++except ImportError:  # 只有老编码器（hubertbase 等）才需要 fairseq，本路线不用
++    checkpoint_utils = None
+ from encoder.hubert.model import HubertSoft
+ from torch.nn.modules.utils import consume_prefix_in_state_dict_if_present
+ from torchaudio.transforms import Resample
+@@ -304,32 +307,40 @@
+         return units
+ 
+ 
++class HubertModelWithFinalProj(HubertModel):
++    """跟正文 6.3 分支同款：HF HubertModel + final_proj，可直接吃转换后的 state_dict。"""
++
++    def __init__(self, config):
++        super().__init__(config)
++        self.final_proj = torch.nn.Linear(config.hidden_size, config.classifier_proj_size)
++
++
++def _load_hubert_state(path):
++    checkpoint = torch.load(path, map_location='cpu')
++    if isinstance(checkpoint, dict) and 'model' in checkpoint and not any(
++            str(k).startswith(('hubert.', 'encoder.')) for k in checkpoint):
++        checkpoint = checkpoint['model']
++    return checkpoint
++
++
+ class Audio2ContentVec768L12():
+     def __init__(self, path, h_sample_rate=16000, h_hop_size=320, device='cpu'):
+         self.device = device
+         print(' [Encoder Model] Content Vec')
+         print(' [Loading] ' + path)
+-        self.models, self.saved_cfg, self.task = checkpoint_utils.load_model_ensemble_and_task([path], suffix="", )
+-        self.hubert = self.models[0]
++        self.hubert = HubertModelWithFinalProj(HubertConfig())
++        state = _load_hubert_state(path)
++        missing, unexpected = self.hubert.load_state_dict(state, strict=False)
++        if missing or unexpected:
++            print(f' [ContentVec] missing={len(missing)} unexpected={len(unexpected)}')
+         self.hubert = self.hubert.to(self.device)
+         self.hubert.eval()
+ 
+     def __call__(self,
+                  audio):  # B, T
+-        # wav_tensor = torch.from_numpy(audio).to(self.device)
+-        wav_tensor = audio
+-        feats = wav_tensor.view(1, -1)
+-        padding_mask = torch.BoolTensor(feats.shape).fill_(False)
+-        inputs = {
+-            "source": feats.to(wav_tensor.device),
+-            "padding_mask": padding_mask.to(wav_tensor.device),
+-            "output_layer": 12,  # layer 12
+-        }
+         with torch.no_grad():
+-            logits = self.hubert.extract_features(**inputs)
+-            feats = logits[0]
+-        units = feats  # .transpose(2, 1)
+-        return units    
++            feats = self.hubert(audio)["last_hidden_state"]
++        return feats
+ 
+ 
+ class Audio2ContentVec768L12TTA2X():
+@@ -337,26 +348,20 @@
+         self.device = device
+         print(' [Encoder Model] Content Vec')
+         print(' [Loading] ' + path)
+-        self.models, self.saved_cfg, self.task = checkpoint_utils.load_model_ensemble_and_task([path], suffix="", )
+-        self.hubert = self.models[0]
++        self.hubert = HubertModelWithFinalProj(HubertConfig())
++        state = _load_hubert_state(path)
++        missing, unexpected = self.hubert.load_state_dict(state, strict=False)
++        if missing or unexpected:
++            print(f' [ContentVec] missing={len(missing)} unexpected={len(unexpected)}')
+         self.hubert = self.hubert.to(self.device)
+         self.hubert.eval()
+ 
+     def __call__(self,
+                  audio):  # B, T
+-        # wav_tensor = torch.from_numpy(audio).to(self.device)
+-        wav_tensor = audio
+-        feats = wav_tensor.view(1, -1)
+-        padding_mask = torch.BoolTensor(feats.shape).fill_(False)
+-        inputs = {
+-            "source": feats.to(wav_tensor.device),
+-            "padding_mask": padding_mask.to(wav_tensor.device),
+-            "output_layer": 12,  # layer 12
+-        }
+         with torch.no_grad():
+-            feats = self.hubert.extract_features(**inputs)[0]
+-            inputs["source"] = F.pad(inputs["source"], (160, 0))
+-            feats2 = self.hubert.extract_features(**inputs)[0]
++            feats = self.hubert(audio)["last_hidden_state"]
++            audio = F.pad(audio, (160, 0))
++            feats2 = self.hubert(audio)["last_hidden_state"]
+             n = feats2.shape[1] - feats.shape[1]
+             if n > 0:
+                 feats = F.pad(feats, (0, 0, 0, 1))
+@@ -364,8 +369,7 @@
+             feats_tta = feats_tta[:, 1:, :]
+             if n > 0:
+                 feats_tta = feats_tta[:, :-1, :]
+-        units = feats_tta  # .transpose(2, 1)
+-        return units
++        return feats_tta
+ 
+ 
+ class CNHubertSoftFish(torch.nn.Module):

@@ -1,0 +1,39 @@
+# 权重与音频永不入库
+*.pt
+*.pt.*
+*.ckpt
+*.pth
+*.onnx
+*.safetensors
+*.bin
+*.wav
+*.mp3
+*.flac
+*.m4a
+*.npy
+*.npz
+
+# 环境与产物
+env/
+.venv/
+.venv-*/
+checkpoints/
+pretrain/
+out/
+outputs/
+cover_runs/
+node_modules/
+__pycache__/
+*.log
+
+# 本机配置（含私人路径）
+cover.local.json
+training.local.json
+*.local.json
+
+# 编辑器/系统
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/

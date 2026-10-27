@@ -1,0 +1,27 @@
+{
+  "_comment": "dsh-advanced-training 的本地训练配置模板。用 cordis.patch.yml 的 trainingConfig 指向它，或设 DSH_ADVANCED_CONFIG。",
+  "songRoot": "/path/to/AI-Song",
+  "workRoot": "/path/to/AI-Song/work",
+  "receiptDir": "/path/to/AI-Song/receipts",
+  "ddspDir": "/path/to/AI-Song/02_模型推理_DDSP-SVC-6.2/DDSP-barbara-6.2",
+  "ddspEnv": "/path/to/AI-Song/02_模型推理_DDSP-SVC-6.2/DDSP-barbara-6.2/env/Scripts/python.exe",
+  "gsvDir": "/path/to/GPT-SoVITS",
+  "gsvEnv": "/path/to/GPT-SoVITS/.venv/Scripts/python.exe",
+  "pyEnv": "/path/to/AI-Song/02_模型推理_DDSP-SVC-6.2/DDSP-barbara-6.2/env/Scripts/python.exe",
+  "ffmpeg": "/path/to/ffmpeg/bin/ffmpeg.exe",
+  "asrModel": "medium",
+  "asrComputeType": "float16",
+  "asrCacheDir": "",
+  "maxOutputChars": 6000,
+  "pipelines": {
+    "ddsp": { "expName": "my-ddsp-voice", "configName": "reflow-barbara.yaml", "trainRoot": "", "voiceLibDir": "" },
+    "gsv": { "version": "v2", "expName": "my-tts-voice" },
+    "anime": { "python": "", "ffmpeg": "", "whisperModel": "", "camppModel": "", "sepRoot": "", "sepPython": "", "sepConfig": "", "sepCheckpoint": "" },
+    "rvc": {
+      "root": "", "repo": "", "python": "",
+      "workRoot": "/path/to/AI-Song/rvc", "ffmpegDir": "/path/to/ffmpeg/bin", "modelDir": "",
+      "expName": "my-rvc-voice", "sampleRate": "48k", "f0Method": "rmvpe",
+      "epochs": 150, "batchSize": 4, "saveEvery": 10, "processes": 2, "minSlices": 1
+    }
+  }
+}
