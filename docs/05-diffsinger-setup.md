@@ -60,9 +60,22 @@ env/Scripts/python.exe scripts/infer.py acoustic "samples/00_我多想说再见�
 
 输出 `out/demo.wav`（44.1 kHz）。`--spk` 用于多说话人模型，单说话人可省略。
 
-## 状态与注意
+## 状态与注意（实测，2026-10-27）
 
-- **状态：安装脚本已就绪，本机端到端待验证**（验证后会补：加载耗时、显存峰值、单句合成耗时、与示例音频的听感/指标）。
+- **引擎装好了，公开检查点对不上**。`PillowTa1k/DiffSinger` 的三个检查点都是**旧版 DiffSinger 格式**（`state_dict` 键为 `pe.mel_prenet.*` 等），而 OpenVPI 现行代码要求 v2 格式（含 `category` 字段、`shallow_diffusion_args`、`K_step_infer` 等）。实测在该仓库里会依次撞上：
+  ```
+  KeyError: 'K_step_infer' → KeyError: 'dictionary' → KeyError: 'train_aux_decoder'
+  → RuntimeError: Category is not specified in this checkpoint.
+  ```
+  补齐前三个键后仍因旧格式的 `state_dict` 命名无法加载。
+- **可用的三条后续路线**：
+  1. 用旧版引擎 `github.com/MoonInTheRiver/DiffSinger`（master 分支，`inference/svs/ds_cascade.py`）。它的 d 依赖很旧（`numpy==1.19.2`、`librosa==0.8.0`、`pytorch-lightning==0.7.1`），需要独立 env，且旧代码大量使用 `np.float` 等已被 numpy 移除的别名，装起来要打补丁；
+  2. 换 **v2 格式声库**（OpenUtau for DiffSinger 的 `.onnx` 声库 + `dsdict.yaml`），用支持 ONNX 的推理器（官方 dsinfer 是 C++/vcpkg，Windows 需 MSVC；也有第三方 Python ONNX 推理项目）；
+  3. 自己训练一个 v2 声库（需要数据与 GPU 时间，不是一次性操作）。
+- 因此本仓库的 SVS 部分当前提供的是**引擎+安装脚本+格式说明**，不提供开箱即用的合成结果；等找到 v2 格式声库或决定走旧版引擎后再补实测。
 - 声库音色固定：想要目标音色，把 DiffSinger 的输出再送进 DDSP-SVC 换声（两套引擎都是 44.1 kHz，链路顺）。
 - 声库/音色的授权不随模型许可转移，公开发布前自行确认。
 - 和 `docs/04` 的 ACE-Step 相比：DiffSinger 的**旋律完全可控**（你有 MIDI），但没有编曲、没有和声、没有自动混音，那些仍要靠后续处理。
+
+> 工程建议：如果目标是"设计一首歌并唱出来"，先用 **ACE-Step**（docs/04）出成品；等你确实需要"每个音符可控"时再投入 DiffSinger 声库的适配成本。
+
