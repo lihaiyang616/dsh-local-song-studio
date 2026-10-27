@@ -24,6 +24,7 @@ dsh plugin --profile desktop add /path/to/repo/plugin/dsh-song-studio
 | `song_convert` | DDSP-SVC 6.2 换声（pilot/full、移调、自动分块） |
 | `song_mix` | pedalboard 混音母带（−14 LUFS） |
 | `song_sing` | SVS：歌词 + 音符（`C4`/`rest`）→ 24 kHz 干声（DiffSinger master/MIDI-B + PE），可再接 song_convert 换音色 |
+| `song_produce` | 一条命令出歌：SVS 唱 → DDSP 换声 → ACE-Step 伴奏 → 三轨对齐 → 混音母带 → 五门验收 |
 | `song_verify` | 五门技术验收 |
 
 配置全部可留空，自动发现顺序：`AI_ROOT` → `E:/AI-Song` → `D:/AI-Song` → `C:/AudioWork`；
@@ -48,3 +49,32 @@ dsh plugin --profile desktop add /path/to/repo/plugin/dsh-song-studio
 - `song_plan` 是模板，不是歌词 AI；要更好的词可以用 ACE-Step 的 LM 或自己写。
 - 8 GB 显存放不下 XL 4B DiT；生成与换声串行跑，别同时占用显存。
 - 技术验收 ≠ 听感验收；审美判断必须由人做（`docs/07`）。
+
+
+## song_produce：一条命令走完（实测 2026-10-27）
+
+调用示例（7.45 s 中文两句 + ACE 生成伴奏）：
+
+```json
+song_produce({
+  "score": [{"text": "SP 深 海 里 的 鲸 鱼 SP 把 心 事 说 给 夜 色 听 SP",
+             "notes": "rest|C4|D4|E4|G4|A4|G4|rest|A4|G4|A4|C5|A4|G4|E4|G4|rest",
+             "notesDuration": "0.3|0.4|0.4|0.4|0.5|0.5|0.6|0.25|0.4|0.4|0.45|0.7|0.4|0.4|0.45|0.5|0.4"}],
+  "caption": "warm Chinese pop ballad instrumental, piano and soft strings, gentle beat, no vocals",
+  "bpm": 96, "key": 0, "outDir": "…/produce-test-01"
+})
+```
+
+实测：全链路 **209 s**（ACE 伴奏生成占大头），六步全绿，技术验收 **5/5 PASS**
+（−14.31 LUFS / −1.00 dBTP / crest 15.79 / 立体声相关 0.241）。产物目录结构：
+
+```
+produce-test-01/
+├── svs.wav              # SVS 干声（24 kHz）
+├── svs-input.json       # 谱面参数（可复现）
+├── conv/lead.wav        # DDSP 换声后主唱（44.1 kHz）
+├── ace/*.wav            # ACE-Step 生成的伴奏（含 params.json）
+├── work/{lead,inst,harm}.wav   # 对齐后的三轨（harm 为等长静音轨）
+├── master.wav           # 母带
+└── master.verify.json   # 五门验收原始数据
+```

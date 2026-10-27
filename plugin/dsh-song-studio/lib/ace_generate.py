@@ -71,6 +71,7 @@ def main():
             thinking=bool(llm),
             caption=p.get("caption", ""),
             lyrics=p.get("lyrics", ""),
+            instrumental=bool(p.get("instrumental", False)),
             bpm=p.get("bpm") or None,
             keyscale=p.get("keyscale", ""),
             timesignature=str(p.get("timesignature", "4")),

@@ -50,6 +50,7 @@ function resolveConfig(config = {}) {
     svsDir: config.svsDir || pjoin(aiRoot, 'svs/DiffSinger-master'),
     svsEnv: config.svsEnv || pjoin(aiRoot, 'svs/DiffSinger-master/env/Scripts/python.exe'),
     svsScript: pjoin(HERE, 'lib/svs_sing.py'),
+    assembleScript: pjoin(HERE, 'lib/assemble.py'),
     voiceModel: config.voiceModel || '',
     ffmpeg: config.ffmpeg || 'ffmpeg',
     defaultLufs: Number(config.defaultLufs ?? -14),
@@ -645,9 +646,166 @@ export async function apply(ctx, config) {
     },
   });
 
+  // 9 · 一条命令出歌：SVS 唱 → DDSP 换声 → 伴奏 → 对齐 → 混音 → 验收
+  tools.register({
+    name: 'song_produce',
+    description:
+      '端到端出歌（一条调用走完）：SVS（歌词+音符）唱干声 → DDSP-SVC 换成目标音色 → 伴奏（用 ACE-Step 生成 instrumental，'
+      + '或给现成文件）→ 三轨对齐 → 混音母带 → 五门技术验收。任何一步失败都会带步骤名返回，不会假装成功。',
+    parameters: {
+      type: 'object',
+      properties: {
+        score: {
+          type: 'array',
+          description: 'SVS 谱面段：[{text, notes, notesDuration, offset?}]；text 里每个汉字对一个音符',
+          items: {
+            type: 'object',
+            properties: {
+              text: { type: 'string' },
+              notes: { type: 'string' },
+              notesDuration: { type: 'string' },
+              offset: { type: 'number' },
+            },
+            required: ['text', 'notes', 'notesDuration'],
+            additionalProperties: false,
+          },
+        },
+        instrumental: { type: 'string', description: '伴奏 wav；留空 = 用 ACE-Step 生成' },
+        caption: { type: 'string', description: '伴奏风格描述（生成时用，英文更稳）' },
+        bpm: { type: 'integer' },
+        keyscale: { type: 'string' },
+        seed: { type: 'integer' },
+        voice: { type: 'string', description: 'DDSP 音色权重路径（默认自动发现）' },
+        key: { type: 'integer', description: '换声移调半音，默认 0' },
+        outDir: { type: 'string' },
+        targetLufs: { type: 'number' },
+        timeoutMs: { type: 'integer' },
+      },
+      required: ['score'],
+      additionalProperties: false,
+    },
+    output: textOut({ type: 'object', properties: { ok: { type: 'boolean' }, master: { type: 'string' }, steps: { type: 'array' }, rendered: { type: 'string' } }, required: ['ok'] },
+      (v) => String(v?.rendered ?? '')),
+    execute: async (args) => {
+      const t0 = Date.now();
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const outDir = args.outDir || pjoin(cfg.outRoot, `produce-${stamp}`);
+      const work = pjoin(outDir, 'work');
+      mkdirSync(outDir, { recursive: true });
+      const steps = [];
+      const fail = (step, detail) => ({
+        ok: false, step, steps,
+        rendered: [`❌ 失败于「${step}」`, `目录: ${outDir}`, '', String(detail || '').slice(0, 2000)].join('\n'),
+      });
+      const timeout = args.timeoutMs ?? cfg.convertTimeoutMs;
+
+      // 1) SVS
+      const svsOut = pjoin(outDir, 'svs.wav');
+      const svsInp = pjoin(outDir, 'svs-input.json');
+      writeFileSync(svsInp, JSON.stringify({
+        config: 'usr/configs/midi/e2e/opencpop/ds100_adj_rel.yaml',
+        exp: '0228_opencpop_ds100_rel',
+        out: svsOut,
+        segments: (args.score || []).map((s) => ({
+          text: s.text, notes: s.notes, notes_duration: s.notesDuration, offset: s.offset ?? 0,
+        })),
+      }, null, 2), 'utf8');
+      const r1 = await runProcess(cfg.svsEnv, [cfg.svsScript, '--inp', svsInp, '--repo', cfg.svsDir], {
+        cwd: cfg.svsDir,
+        env: { TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD: '1', PYTHONPATH: cfg.svsDir },
+        timeoutMs: timeout, maxChars: cfg.maxOutputChars,
+      });
+      const j1 = lastJsonLine(r1.stdout);
+      if (r1.code !== 0 || !j1?.ok) return fail('SVS 合成', r1.stderrTail || r1.stdoutTail);
+      const svsDur = Number(j1.duration || 0);
+      steps.push({ step: 'SVS 合成', ok: true, audio: svsOut, duration: svsDur });
+
+      // 2) DDSP 换声
+      const convDir = pjoin(outDir, 'conv');
+      const lead = pjoin(convDir, 'lead.wav');
+      const r2 = await runProcess(cfg.ddspEnv, [
+        pjoin(cfg.coverRuntime, 'convert.py'), '--src', svsOut, '--out', lead,
+        '--model', args.voice || cfg.voiceModel, '--ddsp-dir', cfg.ddspDir,
+        '--backend', 'baseline', '--mode', 'pilot', '--key', String(args.key ?? 0),
+        '--start', '0', '--duration', String(svsDur + 0.6),
+        '--step', '50', '--method', 'euler', '--t-start', '0',
+      ], { cwd: cfg.ddspDir, timeoutMs: timeout, maxChars: cfg.maxOutputChars });
+      if (r2.code !== 0 || !existsSync(lead)) return fail('DDSP 换声', r2.stderrTail || r2.stdoutTail);
+      steps.push({ step: 'DDSP 换声', ok: true, audio: lead });
+
+      // 3) 伴奏
+      let instPath = args.instrumental;
+      if (!instPath) {
+        const aceOut = pjoin(outDir, 'ace');
+        mkdirSync(aceOut, { recursive: true });
+        const pj = pjoin(aceOut, 'params.json');
+        writeFileSync(pj, JSON.stringify({
+          ace_dir: cfg.aceDir, out_dir: aceOut,
+          caption: args.caption || 'warm pop ballad instrumental, piano and soft strings, gentle beat, no vocals',
+          instrumental: true, lyrics: '[Instrumental]',
+          duration: Math.max(12, Math.ceil(svsDur) + 2),
+          bpm: args.bpm ?? 96, keyscale: args.keyscale ?? '',
+          language: 'zh', seed: args.seed ?? -1, steps: 8, offload: true,
+        }, null, 2), 'utf8');
+        const r3 = await runProcess(cfg.acePy, [cfg.aceScript, '--params', pj], {
+          cwd: cfg.aceDir,
+          env: { HF_ENDPOINT: process.env.HF_ENDPOINT || 'https://hf-mirror.com' },
+          timeoutMs: args.timeoutMs ?? cfg.generateTimeoutMs, maxChars: cfg.maxOutputChars,
+        });
+        const j3 = lastJsonLine(r3.stdout);
+        if (r3.code !== 0 || !j3?.ok) return fail('ACE-Step 伴奏生成', r3.stderrTail || r3.stdoutTail);
+        instPath = j3.audio;
+        steps.push({ step: 'ACE-Step 伴奏', ok: true, audio: instPath, generated: true });
+      } else {
+        steps.push({ step: 'ACE-Step 伴奏', ok: true, audio: instPath, generated: false });
+      }
+
+      // 4) 三轨对齐
+      const r4 = await runProcess(cfg.svsEnv, [cfg.assembleScript, '--lead', lead, '--inst', instPath, '--out-dir', work], {
+        timeoutMs: 300000, maxChars: cfg.maxOutputChars,
+      });
+      const j4 = lastJsonLine(r4.stdout);
+      if (r4.code !== 0 || !j4?.ok) return fail('三轨对齐', r4.stderrTail || r4.stdoutTail);
+      steps.push({ step: '三轨对齐', ok: true, duration: j4.duration, files: { lead: j4.lead, inst: j4.inst, harm: j4.harm } });
+
+      // 5) 混音母带
+      const master = pjoin(outDir, 'master.wav');
+      const r5 = await runProcess(cfg.msstEnv, [
+        pjoin(cfg.coverRuntime, 'mix.py'), '--mix-dir', cfg.coverRuntime,
+        '--out', master, '--profile', 'standard', '--target', String(args.targetLufs ?? cfg.defaultLufs),
+        '--set', `inst=${j4.inst}`, '--set', `lead=${j4.lead}`, '--set', `harm=${j4.harm}`,
+      ], { cwd: work, timeoutMs: 600000, maxChars: cfg.maxOutputChars });
+      if (r5.code !== 0 || !existsSync(master)) return fail('混音母带', r5.stderrTail || r5.stdoutTail);
+      steps.push({ step: '混音母带', ok: true, audio: master });
+
+      // 6) 五门验收
+      const vjson = pjoin(outDir, 'master.verify.json');
+      const r6 = await runProcess(cfg.msstEnv, [
+        pjoin(cfg.coverRuntime, 'verify_mix.py'), master,
+        '--target-lufs', String(args.targetLufs ?? cfg.defaultLufs), '--json', vjson,
+      ], { cwd: cfg.coverRuntime, timeoutMs: 300000, maxChars: cfg.maxOutputChars });
+      const gates = String(r6.stdout || '').split(/\r?\n/).filter((l) => l.includes('[PASS]') || l.includes('[FAIL]') || l.includes('成品:'));
+      steps.push({ step: '五门验收', ok: r6.code === 0, json: vjson, gates });
+
+      const lines = [
+        r6.code === 0 ? '✅ 一条命令出歌完成' : '⚠️ 母带已出，但技术验收未全过',
+        `目录: ${outDir}`,
+        '',
+        '── 步骤 ──',
+        ...steps.map((s) => `  ${s.ok ? '✅' : '❌'} ${s.step}${s.audio ? ` → ${s.audio}` : ''}${s.duration ? `  (${s.duration}s)` : ''}`),
+        '',
+        '── 技术验收 ──',
+        ...gates,
+        '',
+        `母带: ${master}`,
+      ];
+      return { ok: r6.code === 0, master, outDir, steps, seconds: Math.round((Date.now() - t0) / 1000), rendered: lines.join('\n') };
+    },
+  });
+
   registered.push(
     'song_status', 'song_plan', 'song_generate', 'song_separate',
-    'song_convert', 'song_mix', 'song_verify', 'song_sing',
+    'song_convert', 'song_mix', 'song_verify', 'song_sing', 'song_produce',
   );
   logger.info(`[song-studio] 已注册 ${registered.length} 个工具: ${registered.join(', ')}`);
   logger.info(`[song-studio] aiRoot=${cfg.aiRoot}  ACE=${cfg.acePy}  DDSP=${cfg.ddspEnv}`);
