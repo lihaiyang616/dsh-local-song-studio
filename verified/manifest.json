@@ -154,6 +154,26 @@
         "gates_passed": "5/5"
       },
       "evidence": "对母带 ASR 试点转写出与歌词对应的词（有字错），分轨显示人声有实质能量"
+    },
+    "svs_2026-10-27": {
+      "engine": "OpenVPI/DiffSinger master (MoonInTheRiver MIDI-B + PE)",
+      "reason": "public voicebanks are 2023 MIDI-B format (model.fs2.* / model.betas / pe.*); main branch (v2/v3) cannot load them",
+      "voicebank": "PillowTa1k/DiffSinger: 0228_opencpop_ds100_rel (acoustic) + 0109_hifigan_bigpopcs_hop128 (vocoder) + 0102_xiaoma_pe (pitch extractor)",
+      "runtime": "python 3.10 + torch 2.7.1+cu128 + numpy 1.23.5 + scikit-image 0.19.3 + TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1",
+      "patches": [
+        "scipy.signal.kaiser -> scipy.signal.windows.kaiser",
+        "scipy.ndimage.morphology.binary_dilation -> scipy.ndimage.binary_dilation",
+        "np.int -> int"
+      ],
+      "verified": {
+        "builtin_example_seconds": 82.1,
+        "diffusion_steps": 100,
+        "sample_seconds": 7,
+        "output_sample_rate": 24000,
+        "asr_match": "今天别想太多 / 你是我的梦 / 像被放的风",
+        "custom_melody": "深海的鲸鱼 @ C4-D4-E4-G4-A4-G4, 3.4s"
+      },
+      "excluded": "checkpoints and audio not committed"
     }
   }
 }
