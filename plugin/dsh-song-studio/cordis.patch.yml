@@ -17,6 +17,8 @@
         msstEnv: ''
         ddspDir: ''
         ddspEnv: ''
+        svsDir: ''
+        svsEnv: ''
         voiceModel: ''
         ffmpeg: ''
 

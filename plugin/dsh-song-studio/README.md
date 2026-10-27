@@ -14,6 +14,7 @@ DSH 插件：把本机的 **ACE-Step 1.5（整曲生成）→ MSST（分离/分�
 | `song_convert` | DDSP-SVC 6.2 换声（pilot/full、移调、分块） |
 | `song_mix` | 混音 + 母带（−14 LUFS 归一） |
 | `song_verify` | 五门技术验收（LUFS / 真峰值 / crest / LRA / 立体声相关） |
+| `song_sing` | SVS 唱歌：歌词 + 音符（如 `C4`/`rest`）→ 24 kHz 干声（DiffSinger master/MIDI-B + PE） |
 
 ## 安装
 

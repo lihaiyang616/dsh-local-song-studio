@@ -47,6 +47,9 @@ function resolveConfig(config = {}) {
     msstEnv: config.msstEnv || pjoin(aiRoot, '01_人声分离_MSST-GUI/env/Scripts/python.exe'),
     ddspDir: config.ddspDir || pjoin(aiRoot, '02_模型推理_DDSP-SVC-6.2/DDSP-barbara-6.2'),
     ddspEnv: config.ddspEnv || pjoin(aiRoot, '02_模型推理_DDSP-SVC-6.2/DDSP-barbara-6.2/env/Scripts/python.exe'),
+    svsDir: config.svsDir || pjoin(aiRoot, 'svs/DiffSinger-master'),
+    svsEnv: config.svsEnv || pjoin(aiRoot, 'svs/DiffSinger-master/env/Scripts/python.exe'),
+    svsScript: pjoin(HERE, 'lib/svs_sing.py'),
     voiceModel: config.voiceModel || '',
     ffmpeg: config.ffmpeg || 'ffmpeg',
     defaultLufs: Number(config.defaultLufs ?? -14),
@@ -251,6 +254,9 @@ export async function apply(ctx, config) {
       check('生成脚本', cfg.aceScript);
       const msst = check('MSST python', cfg.msstEnv);
       const ddsp = check('DDSP python', cfg.ddspEnv);
+      check('SVS python', cfg.svsEnv);
+      check('SVS 源码', pjoin(cfg.svsDir, 'inference/svs/ds_e2e.py'));
+      check('SVS 声库（0228）', pjoin(cfg.svsDir, 'checkpoints/0228_opencpop_ds100_rel/model_ckpt_steps_160000.ckpt'));
       check('mix_master.py', pjoin(cfg.coverRuntime, 'mix_master.py'));
       check('verify_mix.py', pjoin(cfg.coverRuntime, 'verify_mix.py'));
       check('convert.py', pjoin(cfg.coverRuntime, 'convert.py'));
@@ -585,9 +591,63 @@ export async function apply(ctx, config) {
     },
   });
 
+  // 8 · SVS 唱歌（歌词 + 音符 → 干声）
+  tools.register({
+    name: 'song_sing',
+    description:
+      '用 DiffSinger SVS（master/MIDI-B + PE，中文声库）把「歌词 + 音符」唱成干声：每个汉字一个音符，'
+      + '音名如 C4 / D#4 / F4，rest 表示停顿，notes 用 | 或空格分隔。输出 24 kHz 单声道；'
+      + '要目标音色再接 song_convert（先把 24 kHz 重采样到 44.1 kHz）。',
+    parameters: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: '汉字用空格分隔，SP/rest 表示停顿，如 "SP 深 海 里 的 鲸 鱼 SP"' },
+        notes: { type: 'string', description: '与 text 一一对应的音名，如 "rest|C4|D4|E4|G4|A4|G4|rest"' },
+        notesDuration: { type: 'string', description: '与 notes 一一对应的时值（秒）' },
+        offset: { type: 'number', description: '时间轴起点（秒），默认 0' },
+        out: { type: 'string', description: '输出 wav 路径' },
+        timeoutMs: { type: 'integer' },
+      },
+      required: ['text', 'notes', 'notesDuration'],
+      additionalProperties: false,
+    },
+    output: textOut({ type: 'object', properties: { ok: { type: 'boolean' }, audio: { type: 'string' }, rendered: { type: 'string' } }, required: ['ok'] },
+      (v) => String(v?.rendered ?? '')),
+    execute: async (args) => {
+      const out = args.out || pjoin(cfg.outRoot, `svs-${Date.now()}.wav`);
+      mkdirSync(dirname(out), { recursive: true });
+      const inpPath = pjoin(tmpdir(), `svs-inp-${randomUUID()}.json`);
+      writeFileSync(inpPath, JSON.stringify({
+        config: 'usr/configs/midi/e2e/opencpop/ds100_adj_rel.yaml',
+        exp: '0228_opencpop_ds100_rel',
+        out,
+        segments: [{
+          text: args.text, notes: args.notes,
+          notes_duration: args.notesDuration, offset: args.offset ?? 0,
+        }],
+      }, null, 2), 'utf8');
+      const r = await runProcess(cfg.svsEnv, [cfg.svsScript, '--inp', inpPath, '--repo', cfg.svsDir], {
+        cwd: cfg.svsDir,
+        env: { TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD: '1', PYTHONPATH: cfg.svsDir },
+        timeoutMs: args.timeoutMs ?? 600000,
+        maxChars: cfg.maxOutputChars,
+      });
+      const parsed = lastJsonLine(r.stdout);
+      const ok = !!parsed?.ok;
+      const rendered = [
+        ok ? '✅ 合成完成' : '❌ 合成失败',
+        `退出码: ${r.code}`,
+        ok ? `音频: ${parsed.audio}（${parsed.sample_rate} Hz，${parsed.duration}s）` : `输出尾部:\n${r.stderrTail || r.stdoutTail}`,
+        ok ? '下一步: song_convert 换音色（先重采样到 44.1 kHz）或直接与伴奏混音。' : '',
+        `参数文件: ${inpPath}`,
+      ].filter(Boolean).join('\n');
+      return { ok, audio: parsed?.audio, sampleRate: parsed?.sample_rate, duration: parsed?.duration, rendered };
+    },
+  });
+
   registered.push(
     'song_status', 'song_plan', 'song_generate', 'song_separate',
-    'song_convert', 'song_mix', 'song_verify',
+    'song_convert', 'song_mix', 'song_verify', 'song_sing',
   );
   logger.info(`[song-studio] 已注册 ${registered.length} 个工具: ${registered.join(', ')}`);
   logger.info(`[song-studio] aiRoot=${cfg.aiRoot}  ACE=${cfg.acePy}  DDSP=${cfg.ddspEnv}`);
